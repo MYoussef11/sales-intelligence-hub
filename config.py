@@ -9,11 +9,11 @@ class Settings(BaseSettings):
     DEBUG_MODE: bool = False
     
     # Database
-    POSTGRES_USER: str = "admin"
-    POSTGRES_PASSWORD: str = "admin123"
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str = "sales_intelligence"
     POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 5432
-    POSTGRES_DB: str = "sales_intelligence"
     
     @property
     def DATABASE_URL(self) -> str:
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     LEAD_SCORE_THRESHOLD: float = 0.5
     
     # External APIs
-    OPENAI_API_KEY: str = "sk-placeholder"
+    OPENAI_API_KEY: str
     
     # Paths
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
