@@ -1,82 +1,59 @@
 version: '3.8'
 
 services:
-  # 1. Database Layer
   db:
     image: postgres:15-alpine
-    container_name: sales_hub_db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-admin}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin123}
       POSTGRES_DB: ${POSTGRES_DB:-sales_intelligence}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    networks:
-      - sales_net
 
-  # 2. Backend API (FastAPI)
   backend:
-    build: 
-      context: .
-      dockerfile: Dockerfile.backend
-    container_name: sales_hub_backend
-    restart: always
-    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    volumes:
-      - .:/app
+    build: .
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-admin123}@db:5432/${POSTGRES_DB:-sales_intelligence}
+      - POSTGRES_SERVER=db
+      - POSTGRES_USER=${POSTGRES_USER:-admin}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-admin123}
+      - POSTGRES_DB=${POSTGRES_DB:-sales_intelligence}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DOCKER_ENV=true
     depends_on:
       - db
-    networks:
-      - sales_net
-
-  # 3. Frontend Dashboard (Streamlit)
-  dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile.dashboard
-    container_name: sales_hub_dashboard
-    restart: always
-    command: streamlit run app.py --server.port 8501 --server.address 0.0.0.0
     volumes:
       - .:/app
+
+  dashboard:
+    build: .
+    command: streamlit run app/dashboard.py --server.port=8501 --server.address=0.0.0.0
     ports:
       - "8501:8501"
     environment:
-      API_URL: http://backend:8000
+      - POSTGRES_SERVER=db
+      - DOCKER_ENV=true
     depends_on:
       - backend
-    networks:
-      - sales_net
+    volumes:
+      - .:/app
 
-  # 4. Automation (n8n)
   n8n:
     image: docker.n8n.io/n8nio/n8n
-    container_name: sales_hub_n8n
-    restart: always
     ports:
       - "5678:5678"
     environment:
-      - N8N_HOST=${N8N_HOST:-localhost}
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - NODE_ENV=production
-      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin
     volumes:
       - n8n_data:/home/node/.n8n
-    networks:
-      - sales_net
 
 volumes:
   postgres_data:
   n8n_data:
-
-networks:
-  sales_net:
-    driver: bridge

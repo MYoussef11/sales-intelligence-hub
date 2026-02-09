@@ -4,10 +4,18 @@ import requests
 import plotly.express as px
 import plotly.graph_objects as go
 import time
+import os
+import sys
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import get_settings
+
+settings = get_settings()
 
 # Config
-API_URL = "http://localhost:8000"
-st.set_page_config(page_title="Sales Intelligence Hub", layout="wide")
+API_URL = f"http://{settings.POSTGRES_SERVER}:8000" if os.environ.get("DOCKER_ENV") else "http://localhost:8000"
+st.set_page_config(page_title=settings.APP_NAME, layout="wide")
 
 # Sidebar
 st.sidebar.title("Navigation")

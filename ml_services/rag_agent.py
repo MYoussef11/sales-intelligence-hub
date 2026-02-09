@@ -5,49 +5,82 @@ from langchain.text_splitter import CharacterTextSplitter
 from langchain.document_loaders import TextLoader
 from langchain.schema import Document
 import sys
+import logging
 
-# Set Mock OpenAI Key for POC logic (since we don't have a real one yet)
-# In production, use os.getenv("OPENAI_API_KEY")
-os.environ["OPENAI_API_KEY"] = "sk-placeholder" 
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import get_settings
+
+settings = get_settings()
+logger = logging.getLogger(__name__)
+
+# Use API Key from settings
+os.environ["OPENAI_API_KEY"] = settings.OPENAI_API_KEY
+
+from langchain.document_loaders import DirectoryLoader, TextLoader
+import glob
 
 class InternalSalesAgent:
     def __init__(self):
         self.vector_store = None
-        # Use a mock embedding or simple one for POC if no API key
-        # For this script structure, we assume OpenAI is available or fallback
-        pass
+        self.documents = []
+        # Lazy load or auto-load on init
+        self.ingest_docs()
 
-    def ingest_policies(self, policy_text):
-        """
-        Ingest text into vector store
-        """
-        print("Ingesting policy documents...")
-        splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-        docs = [Document(page_content=x) for x in splitter.split_text(policy_text)]
-        
-        # In a real scenario with API Key:
-        # embeddings = OpenAIEmbeddings()
-        # self.vector_store = FAISS.from_documents(docs, embeddings)
-        # self.vector_store.save_local("faiss_index")
-        
-        # For POC without key, we mock the retrieval
-        self.mock_docs = docs
-        print(f"Indexed {len(docs)} chunks.")
+    def ingest_docs(self):
+        docs_dir = os.path.join(settings.DATA_DIR, "docs")
+        if not os.path.exists(docs_dir):
+            logger.warning(f"Docs directory not found: {docs_dir}")
+            return
+
+        logger.info(f"Loading documents from {docs_dir}...")
+        try:
+            # Simple text loader for .md files
+            loader = DirectoryLoader(docs_dir, glob="**/*.md", loader_cls=TextLoader)
+            self.documents = loader.load()
+            
+            splitter = CharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+            self.docs_chunks = splitter.split_documents(self.documents)
+            
+            logger.info(f"Ingested {len(self.documents)} files, split into {len(self.docs_chunks)} chunks.")
+            
+            # Here we would init the VectorStore with Embeddings
+            # self.vector_store = FAISS.from_documents(self.docs_chunks, OpenAIEmbeddings())
+            
+        except Exception as e:
+            logger.error(f"Error ingesting docs: {e}")
 
     def query(self, question):
         """
-        RAG Query
+        RAG Query - Simple retrieval simulation for POC
         """
-        # Mock retrieval for POC without live API key
-        print(f"Searching for: {question}")
-        return "Based on the policy, standard warranties cover engine and transmission for 2 years. (Mock Answer from RAG)"
+        if not self.documents:
+            return "Knowledge base is empty. Please check data/docs directory."
+            
+        # Mock retrieval: Check if keywords exist in docs
+        # In real RAG: relevant_docs = self.vector_store.similarity_search(question)
+        
+        logger.info(f"Searching knowledge base for: {question}")
+        
+        # Simple keyword search for POC demonstration without embeddings cost
+        relevant_chunks = []
+        keywords = question.lower().split()
+        for doc in self.docs_chunks:
+            content = doc.page_content.lower()
+            score = sum(1 for k in keywords if k in content)
+            if score > 0:
+                relevant_chunks.append((score, doc.page_content))
+                
+        if not relevant_chunks:
+             return "I couldn't find specific information in the policy documents."
+             
+        # Return top match
+        relevant_chunks.sort(key=lambda x: x[0], reverse=True)
+        best_match = relevant_chunks[0][1]
+        
+        return f"Based on internal policies:\n\n...{best_match[:300]}...\n\n(Source: Internal Knowledge Base)"
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
     agent = InternalSalesAgent()
-    policy_content = """
-    Return Policy: All vehicles can be returned within 14 days if under 500km usage.
-    Warranty: Standard warranty is 2 years for engine and transmission.
-    Discount: Sales reps can authorize up to 5% discount. Managers up to 10%.
-    """
-    agent.ingest_policies(policy_content)
-    print(agent.query("What is the warranty period?"))
+    print(agent.query("What is the return policy?"))

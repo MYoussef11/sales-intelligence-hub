@@ -4,27 +4,39 @@ import pandas as pd
 import sys
 import os
 import uvicorn
+import logging
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import get_settings
+
+settings = get_settings()
+
+# Setup Logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 from ml_services.forecasting import train_forecast_model # In prod, load saved model
 from ml_services.lead_scoring import LeadScorer
 from ml_services.segmentation import DealerSegmentation
 from ml_services.rag_agent import InternalSalesAgent
 
-app = FastAPI(title="Sales Intelligence Hub API", version="1.0")
+app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
 # Initialize Services (Load models)
-# In a real app, we'd load pickled models here to avoid retraining on every request
 lead_scorer = LeadScorer()
 segmentor = DealerSegmentation()
 rag_agent = InternalSalesAgent()
 
-# Pre-train/load for POC
-print("Loading/Training models...")
-lead_scorer.train() 
-# segmentor.train() # Segmentation is usually batch, not real-time 
+@app.on_event("startup")
+async def startup_event():
+    logger.info("Starting up Sales Intelligence Hub API...")
+    try:
+        lead_scorer.load_model()
+        segmentor.load_model()
+        logger.info("Models loaded successfully.")
+    except Exception as e:
+        logger.error(f"Error loading models: {e}")
 
 # Request Models
 class LeadRequest(BaseModel):

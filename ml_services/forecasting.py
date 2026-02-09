@@ -5,15 +5,17 @@ from sqlalchemy import create_engine
 import os
 import sys
 from datetime import timedelta
+import logging
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database.schema import Transaction
+from config import get_settings
 
-DATABASE_URL = "postgresql://admin:admin123@localhost:5432/sales_intelligence"
+settings = get_settings()
+logger = logging.getLogger(__name__)
 
 def get_sales_data(dealer_id=None):
-    engine = create_engine(DATABASE_URL)
+    engine = create_engine(settings.DATABASE_URL)
     query = """
     SELECT date, sale_price 
     FROM transactions 
@@ -41,10 +43,11 @@ def create_features(df):
     return df
 
 def train_forecast_model(dealer_id=None):
-    print(f"Training XGBoost forecast model for dealer_id={dealer_id}...")
+    logger.info(f"Training XGBoost forecast model for dealer_id={dealer_id}...")
     df = get_sales_data(dealer_id)
     
     if df.empty:
+        logger.warning(f"No data found for dealer_id={dealer_id}")
         return None, "No data found"
         
     # Aggregate by day
