@@ -30,4 +30,16 @@ dist/
 .DS_Store
 Thumbs.db
 
+# Environment
 .venv/
+.env
+
+# Data & Dumps
+*.sql
+*.dump
+data/*.csv
+models/*.pkl
+
+# OS
+.DS_Store
+
