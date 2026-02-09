@@ -7,25 +7,53 @@ import pandas as pd
 import numpy as np
 import sys
 import os
+import math
+import logging
 
 # Add parent directory to path to import schema
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import get_settings
 from database.schema import Base, Dealer, Employee, Inventory, Transaction, Lead, SizeEnum, RoleEnum, KPISnapshot
 
-# Database Connection
-DATABASE_URL = "postgresql://admin:admin123@localhost:5432/sales_intelligence"
-engine = create_engine(DATABASE_URL)
+settings = get_settings()
+engine = create_engine(settings.DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
 
-fake = Faker('de_DE') # German locale for realism
+fake = Faker('de_DE')
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+def get_seasonality_factor(date):
+    """
+    Returns a seasonality factor based on month.
+    Peak in March (3) and September (9).
+    Low in August (8) and December (12).
+    """
+    month = date.month
+    # Simple sine wave approximation + noise
+    base = 1.0
+    seasonality = 0.2 * math.sin((month - 1) * math.pi / 6)  # Period of 12 months
+    # Adjust for specific peaks if needed, but sine wave gives smooth transition
+    # Month 3 (March) -> sin(2pi/6) ~ 0.86 (High)
+    # Month 9 (Sept) -> sin(8pi/6) ~ -0.86 (Wait, simple sine is simple). 
+    
+    # Custom multipliers for automotive:
+    if month in [3, 4, 5, 9, 10]:
+        return random.uniform(1.1, 1.3)
+    elif month in [8, 12]:
+        return random.uniform(0.7, 0.9)
+    else:
+        return random.uniform(0.9, 1.1)
 
 def generate_dealers(n=20):
-    print(f"Generating {n} dealers...")
+    logger.info(f"Generating {n} dealers...")
     brands_list = ["Volkswagen", "BMW", "Mercedes-Benz", "Audi", "Ford", "Opel", "Skoda"]
     dealers = []
     for _ in range(n):
         size = random.choice(list(SizeEnum))
+        churn_risk = random.uniform(0, 1)
+        
         dealer = Dealer(
             name=fake.company(),
             country="Germany",
@@ -33,7 +61,7 @@ def generate_dealers(n=20):
             size=size,
             brands=",".join(random.sample(brands_list, k=random.randint(1, 3))),
             avg_monthly_volume=random.randint(20, 150) if size == SizeEnum.LARGE else random.randint(5, 40),
-            churn_risk_score=random.uniform(0, 1),
+            churn_risk_score=churn_risk,
             joined_date=fake.date_time_between(start_date='-5y', end_date='-2y')
         )
         dealers.append(dealer)
@@ -42,7 +70,7 @@ def generate_dealers(n=20):
     return dealers
 
 def generate_employees(dealers):
-    print("Generating employees...")
+    logger.info("Generating employees...")
     employees = []
     # Internal Sales Reps
     for _ in range(5):
@@ -60,7 +88,7 @@ def generate_employees(dealers):
     return employees
 
 def generate_inventory_and_transactions(dealers, employees, years=3):
-    print(f"Generating inventory and transactions for {years} years...")
+    logger.info(f"Generating inventory and transactions for {years} years...")
     
     start_date = datetime.now() - timedelta(days=365*years)
     end_date = datetime.now()
@@ -69,75 +97,113 @@ def generate_inventory_and_transactions(dealers, employees, years=3):
     transactions = []
     leads = []
     
-    # Simulation Loop (simplified per dealer)
     for dealer in dealers:
-        # Generate Inventory
-        for _ in range(random.randint(50, 200)): # Inventory per dealer
-            acquisition_date = fake.date_time_between(start_date=start_date, end_date=end_date)
-            make = random.choice(dealer.brands.split(","))
-            model = fake.word().capitalize() # Simplified
+        # Determine dealer volume trend
+        # If High churn risk, volume decreases over time
+        volume_trend = -0.5 if dealer.churn_risk_score > 0.7 else 0.1
+        
+        # Base annual volume
+        annual_volume = dealer.avg_monthly_volume * 12
+        
+        # Iterate through months
+        current_date = start_date
+        while current_date < end_date:
+            month_factor = get_seasonality_factor(current_date)
             
-            car = Inventory(
-                dealer_id=dealer.dealer_id,
-                make=make,
-                model=model,
-                year=random.randint(2018, 2024),
-                acquisition_price=random.randint(10000, 50000),
-                condition_score=random.randint(1, 10),
-                location=dealer.city,
-                ingredients_date=acquisition_date,
-                days_in_stock=random.randint(1, 180),
-                status="available" # Default
-            )
+            # Apply churn volume degradation
+            months_passed = (current_date.year - start_date.year) * 12 + (current_date.month - start_date.month)
+            churn_factor = max(0.2, 1 + (volume_trend * months_passed / 36)) # Decay over 3 years
             
-            # Simulate Sale (Transaction)
-            if random.random() > 0.3: # 70% sell rate
-                car.status = "sold"
-                car.expected_resale_price = car.acquisition_price * 1.15
+            monthly_target = int(dealer.avg_monthly_volume * month_factor * churn_factor)
+            
+            for _ in range(monthly_target):
+                # Inventory Creation
+                acquisition_date = fake.date_time_between(start_date=current_date, end_date=current_date + timedelta(days=28))
+                if acquisition_date > end_date: continue
                 
-                sale_date = car.ingredients_date + timedelta(days=car.days_in_stock)
-                if sale_date > end_date:
-                    car.status = "available" # Didn't sell yet
-                else:
-                    transaction = Transaction(
-                        date=sale_date,
-                        dealer_id=dealer.dealer_id,
-                        car=car,
-                        sale_price=car.expected_resale_price * random.uniform(0.95, 1.05),
-                        margin=0, # Calculated later
-                        channel=random.choice(["auction", "direct", "wholesale"])
-                    )
-                    transaction.margin = transaction.sale_price - car.acquisition_price
-                    transactions.append(transaction)
+                make = random.choice(dealer.brands.split(","))
+                
+                car = Inventory(
+                    dealer_id=dealer.dealer_id,
+                    make=make,
+                    model=fake.word().capitalize(),
+                    year=random.randint(2018, 2024),
+                    acquisition_price=random.randint(10000, 50000),
+                    condition_score=random.randint(1, 10),
+                    location=dealer.city,
+                    ingredients_date=acquisition_date,
+                    days_in_stock=random.randint(1, 180),
+                    status="available"
+                )
+                
+                # Transaction Logic
+                # Older cars (>90 days) get price discounted
+                selling_probability = 0.8
+                if dealer.churn_risk_score > 0.8:
+                    selling_probability = 0.4 # Churning dealers sell less
+                
+                if random.random() < selling_probability:
+                    car.status = "sold"
+                    sale_date = car.ingredients_date + timedelta(days=random.randint(1, car.days_in_stock))
+                    
+                    if sale_date <= end_date:
+                        # Price Logic
+                        days_held = (sale_date - car.ingredients_date).days
+                        aging_discount = 0.95 if days_held > 90 else 1.0
+                        
+                        margin_pct = random.uniform(0.05, 0.15) * aging_discount
+                        sale_price = car.acquisition_price * (1 + margin_pct)
+                        
+                        transaction = Transaction(
+                            date=sale_date,
+                            dealer_id=dealer.dealer_id,
+                            car=car,
+                            sale_price=sale_price,
+                            margin=sale_price - car.acquisition_price,
+                            channel=random.choice(["auction", "direct", "wholesale"])
+                        )
+                        transactions.append(transaction)
+                    else:
+                         car.status = "available"
+                
+                cars.append(car)
             
-            cars.append(car)
-
-        # Generate Leads
-        for _ in range(random.randint(100, 500)):
-            lead_date = fake.date_time_between(start_date=start_date, end_date=end_date)
-            lead = Lead(
+            # Next month
+            current_date += timedelta(days=30)
+            
+        # Leads Generation (correlated with volume)
+        for _ in range(int(annual_volume * years * 0.5)): # 50% conversion rate approx
+             lead_date = fake.date_time_between(start_date=start_date, end_date=end_date)
+             lead = Lead(
                 created_at=lead_date,
                 dealer_id=dealer.dealer_id,
                 source=random.choice(["website", "referral", "email"]),
                 inquiry_text=fake.sentence(),
                 response_time_minutes=random.randint(5, 120),
                 assigned_rep_id=random.choice(employees).rep_id,
-                converted=random.choice([True, False]),
                 conversion_probability=random.uniform(0.1, 0.9)
             )
-            if lead.converted:
-                lead.conversion_date = lead_date + timedelta(days=random.randint(1, 30))
-            leads.append(lead)
+             # Logic for conversion
+             if lead.conversion_probability > 0.6:
+                 lead.converted = True
+                 lead.conversion_date = lead_date + timedelta(days=random.randint(1, 20))
+             else:
+                 lead.converted = False
+                 
+             leads.append(lead)
 
+    # Bulk insert (in chunks if needed, but 3 years manageable)
+    logger.info(f"Saving {len(cars)} cars, {len(transactions)} transactions, {len(leads)} leads...")
     session.add_all(cars)
     session.add_all(transactions)
     session.add_all(leads)
     session.commit()
-    print("Data generation complete.")
+    logger.info("Data generation complete.")
 
 def init_db():
+    Base.metadata.drop_all(engine) # Reset DB for clean generation
     Base.metadata.create_all(engine)
-    print("Database tables created.")
+    logger.info("Database tables recreated.")
 
 if __name__ == "__main__":
     init_db()
