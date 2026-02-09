@@ -14,7 +14,7 @@ from config import get_settings
 settings = get_settings()
 
 # Config
-API_URL = f"http://{settings.POSTGRES_SERVER}:8000" if os.environ.get("DOCKER_ENV") else "http://localhost:8000"
+API_URL = f"http://{settings.API_SERVER}:8000"
 st.set_page_config(page_title=settings.APP_NAME, layout="wide")
 
 # Sidebar

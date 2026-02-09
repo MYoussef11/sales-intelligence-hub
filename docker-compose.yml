@@ -37,6 +37,7 @@ services:
       - "8501:8501"
     environment:
       - POSTGRES_SERVER=db
+      - API_SERVER=backend
       - DOCKER_ENV=true
     depends_on:
       - backend

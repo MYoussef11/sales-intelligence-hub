@@ -83,13 +83,7 @@ def get_segments():
 @app.post("/agent/query")
 def query_agent(query: AgentQuery):
     try:
-        # Mock ingestion for POC context
-        policy_content = """
-        Return Policy: All vehicles can be returned within 14 days if under 500km usage.
-        Warranty: Standard warranty is 2 years for engine and transmission.
-        Discount: Sales reps can authorize up to 5% discount. Managers up to 10%.
-        """
-        rag_agent.ingest_policies(policy_content)
+        # Agent has already ingested docs from data/docs on startup
         answer = rag_agent.query(query.question)
         return {"answer": answer}
     except Exception as e:
