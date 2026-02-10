@@ -1,26 +1,36 @@
-fastapi==0.109.0
-uvicorn==0.27.0
-sqlalchemy==2.0.25
-psycopg2-binary==2.9.9
-pandas==2.2.0
-numpy==1.26.3
-faker==22.5.0
-scikit-learn==1.4.0
-xgboost==2.0.3
-streamlit==1.30.0
-langchain==0.1.0
-openai==1.10.0
-python-dotenv==1.0.1
-plotly==5.18.0
-requests==2.31.0
-tiktoken
-pydantic-settings
+wheel
+setuptools
+Cython<3.0
+PyYAML==6.0.1
+# Core API
+fastapi>=0.109.0
+uvicorn>=0.27.0
+python-dotenv>=1.0.1
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+requests>=2.31.0
+
+# Data & ML
+sqlalchemy>=2.0.25
+psycopg2-binary>=2.9.9
+pandas>=2.2.0
+numpy>=1.26.3
+scikit-learn>=1.4.0
+xgboost>=2.0.3
+
+# UI
+streamlit>=1.30.0
+plotly>=5.18.0
+
+# AI/RAG
+openai>=1.10.0
+tiktoken>=0.5.2
+langchain>=0.1.0
+langchain-community>=0.0.10
+langchain-openai>=0.0.5
+langgraph>=0.0.10
+faiss-cpu>=1.7.4
 unstructured
 markdown
 networkx
-langgraph
-langchain-openai==0.0.5
-langchain-community
-faiss-cpu
-pydantic<2.0
 
