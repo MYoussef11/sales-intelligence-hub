@@ -19,7 +19,7 @@ unstructured
 markdown
 networkx
 langgraph
-langchain-openai
+langchain-openai==0.0.5
 langchain-community
 faiss-cpu
 
