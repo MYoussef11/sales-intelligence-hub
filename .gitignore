@@ -38,6 +38,7 @@ Thumbs.db
 *.sql
 *.dump
 data/*.csv
+data/docs/
 models/*.pkl
 
 # OS
