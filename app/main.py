@@ -19,14 +19,14 @@ logger = logging.getLogger(__name__)
 from ml_services.forecasting import train_forecast_model # In prod, load saved model
 from ml_services.lead_scoring import LeadScorer
 from ml_services.segmentation import DealerSegmentation
-from ml_services.rag_agent import InternalSalesAgent
+from ml_services.orchestrator import run_chat
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
 # Initialize Services (Load models)
 lead_scorer = LeadScorer()
 segmentor = DealerSegmentation()
-rag_agent = InternalSalesAgent()
+# rag_agent = InternalSalesAgent() -> Replaced by Orchestrator
 
 @app.on_event("startup")
 async def startup_event():
@@ -84,7 +84,7 @@ def get_segments():
 def query_agent(query: AgentQuery):
     try:
         # Agent has already ingested docs from data/docs on startup
-        answer = rag_agent.query(query.question)
+        answer = run_chat(query.question)
         return {"answer": answer}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

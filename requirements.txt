@@ -18,4 +18,8 @@ pydantic-settings
 unstructured
 markdown
 networkx
+langgraph
+langchain-openai
+langchain-community
+faiss-cpu
 

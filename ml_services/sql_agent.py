@@ -5,9 +5,9 @@ import logging
 from sqlalchemy import create_engine, text
 from langchain.utilities import SQLDatabase
 from langchain.agents import create_sql_agent
-from langchain.agents.agent_toolkits import SQLDatabaseToolkit
-from langchain.agents.agent_types import AgentType
-from langchain.chat_models import ChatOpenAI
+from langchain_community.agent_toolkits import SQLDatabaseToolkit
+from langchain.agents import AgentType
+from langchain_openai import ChatOpenAI
 from langchain.schema import AgentAction, AgentFinish
 
 # Add parent directory to path
@@ -64,6 +64,11 @@ class SecureSQLAgent:
         """
         logger.info(f"Received Query: {natural_language_query}")
         
+        # 1. Security Check (Regex)
+        is_safe, message = self.validate_query(natural_language_query)
+        if not is_safe:
+             return message
+
         query_prefix = (
             "You are a READ-ONLY data analyst. "
             "You must NOT modify data. "
