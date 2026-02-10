@@ -24,6 +24,7 @@ class InternalSalesAgent:
     def __init__(self):
         self.vector_store = None
         self.documents = []
+        self.docs_chunks = [] # Initialize safety
         # Lazy load or auto-load on init
         self.ingest_docs()
 
@@ -48,7 +49,8 @@ class InternalSalesAgent:
             # self.vector_store = FAISS.from_documents(self.docs_chunks, OpenAIEmbeddings())
             
         except Exception as e:
-            logger.error(f"Error ingesting docs: {e}")
+            logger.error(f"Error ingesting docs: {e}", exc_info=True)
+            self.docs_chunks = [] # Ensure it's a list even on error
 
     def query(self, question):
         """

@@ -45,6 +45,7 @@ services:
       - .:/app
 
   n8n:
+    profiles: [ "tools" ]
     image: docker.n8n.io/n8nio/n8n
     ports:
       - "5678:5678"
