@@ -19,16 +19,7 @@ logger = logging.getLogger(__name__)
 from ml_services.forecasting import train_forecast_model # In prod, load saved model
 from ml_services.lead_scoring import LeadScorer
 from ml_services.segmentation import DealerSegmentation
-try:
-    from ml_services.orchestrator import run_chat
-except ImportError as e:
-    import subprocess
-    import sys
-    print(f"CRITICAL IMPORT ERROR: {e}", file=sys.stderr)
-    print("--- PIP LIST START ---", file=sys.stderr)
-    subprocess.run([sys.executable, "-m", "pip", "list"], stdout=sys.stderr)
-    print("--- PIP LIST END ---", file=sys.stderr)
-    raise e
+from ml_services.orchestrator import run_chat
 
 app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
