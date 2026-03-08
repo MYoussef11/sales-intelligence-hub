@@ -119,7 +119,8 @@ def generate_inventory_and_transactions(dealers, employees, years=3):
             for _ in range(monthly_target):
                 # Inventory Creation
                 acquisition_date = fake.date_time_between(start_date=current_date, end_date=current_date + timedelta(days=28))
-                if acquisition_date > end_date: continue
+                if acquisition_date > end_date:
+                    continue
                 
                 make = random.choice(dealer.brands.split(","))
                 

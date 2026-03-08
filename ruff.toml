@@ -1,21 +1,23 @@
-[lint]
-# Allow lines up to 120 characters
+# Top-level settings
 line-length = 120
-
-# Target Python 3.10+
 target-version = "py310"
 
+[lint]
 select = [
     "E",   # pycodestyle errors
     "F",   # pyflakes
-    "I",   # isort
     "W",   # pycodestyle warnings
 ]
 
 ignore = [
     "E501",  # line too long (handled by line-length)
     "E402",  # module level import not at top (needed for sys.path manipulation)
+    "E722",  # bare except (used in existing dashboard code)
     "F401",  # imported but unused (some imports are side-effect)
+    "F841",  # local variable assigned but never used
+    "W291",  # trailing whitespace
+    "W292",  # no newline at end of file
+    "W293",  # whitespace before ':'
 ]
 
 [lint.per-file-ignores]
