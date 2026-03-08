@@ -17,6 +17,18 @@ from config import get_settings
 
 settings = get_settings()
 
+# --- Sentry Error Tracking ---
+import sentry_sdk
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
+        release=settings.APP_VERSION,
+    )
+    logging.getLogger(__name__).info("Sentry error tracking enabled")
+
 # Setup Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -212,6 +224,49 @@ def landing_page():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(content="<h1>Landing page template not found</h1>", status_code=404)
+
+# --- Admin Endpoints (internal use by n8n workflows) ---
+
+@app.post("/admin/retrain")
+async def retrain_models():
+    """Trigger model retraining pipeline. Returns training metrics."""
+    try:
+        from scripts.train_models import main as run_training
+        results = run_training()
+        
+        summary = {
+            "status": "completed",
+            "lead_scorer": {"status": "ok", "metrics": results.get("lead_scorer")} if results.get("lead_scorer") else {"status": "failed"},
+            "segmentation": {"status": "ok", "metrics": results.get("segmentation")} if results.get("segmentation") else {"status": "failed"},
+            "forecasting": {"status": "ok"} if results.get("forecasting") else {"status": "failed"},
+        }
+        
+        # Reload models in memory
+        try:
+            lead_scorer.load_model()
+            segmentor.load_model()
+            logger.info("Models reloaded after retraining")
+        except Exception as reload_err:
+            logger.warning(f"Model reload after retrain: {reload_err}")
+        
+        return summary
+    except Exception as e:
+        logger.error(f"Retraining failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/admin/drift-check")
+async def check_drift(table: str = "leads"):
+    """Run data drift analysis. Returns drift summary and saves HTML report."""
+    try:
+        from ml_services.drift_monitor import DriftMonitor
+        monitor = DriftMonitor()
+        result = monitor.run_drift_check(table)
+        return result
+    except Exception as e:
+        logger.error(f"Drift check failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

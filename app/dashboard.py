@@ -12,6 +12,16 @@ from config import get_settings
 
 settings = get_settings()
 
+# --- Sentry Error Tracking ---
+import sentry_sdk
+if settings.SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=settings.SENTRY_DSN,
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+        environment=os.getenv("SENTRY_ENVIRONMENT", "development"),
+    )
+
 # Config
 API_URL = f"http://{settings.API_SERVER}:8000"
 st.set_page_config(

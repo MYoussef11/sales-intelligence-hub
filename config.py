@@ -29,6 +29,10 @@ class Settings(BaseSettings):
     # External APIs
     OPENAI_API_KEY: str
     
+    # Observability
+    SENTRY_DSN: str = ""
+    MLFLOW_TRACKING_URI: str = ""
+    
     # Paths
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
     DATA_DIR: str = os.path.join(BASE_DIR, "data")

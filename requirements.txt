@@ -37,3 +37,11 @@ faiss-cpu==1.8.0
 markdown
 networkx
 
+# Observability & MLOps
+sentry-sdk[fastapi]
+mlflow>=2.9.0
+evidently>=0.4.0
+
+# Testing & CI
+pytest>=7.4.0
+ruff>=0.2.0

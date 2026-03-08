@@ -41,3 +41,10 @@ models/*.pkl
 
 # n8n local data
 n8n_data/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Evidently reports
+reports/
