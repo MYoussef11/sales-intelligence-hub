@@ -3,7 +3,7 @@
 Compares current data distributions against a reference baseline
 to detect concept drift and data quality issues.
 
-Compatible with Evidently v0.5+ (new API).
+Compatible with Evidently v0.7+ API.
 """
 import os
 import sys
@@ -18,7 +18,7 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Evidently v0.5+ imports
+# Evidently v0.7+ imports
 from evidently import Report
 from evidently.presets import DataDriftPreset
 
@@ -27,7 +27,6 @@ class DriftMonitor:
     """Monitors data distributions for drift using Evidently AI."""
 
     REPORTS_DIR = os.path.join(settings.BASE_DIR, "reports")
-    REFERENCE_PATH = os.path.join(settings.BASE_DIR, "reports", "reference_data.parquet")
 
     def __init__(self):
         os.makedirs(self.REPORTS_DIR, exist_ok=True)
@@ -52,10 +51,7 @@ class DriftMonitor:
         return len(df)
 
     def run_drift_check(self, table: str = "leads") -> dict:
-        """Run drift analysis comparing current data against reference.
-
-        Returns a summary dict with drift status and details.
-        """
+        """Run drift analysis comparing current data against reference."""
         ref_path = os.path.join(self.REPORTS_DIR, f"reference_{table}.parquet")
 
         # Create reference if it doesn't exist
@@ -87,22 +83,23 @@ class DriftMonitor:
         ref_subset = reference_data[compare_cols].copy()
         cur_subset = current_data[compare_cols].copy()
 
-        # Build and run the Evidently report (v0.5+ API)
-        report = Report(metrics=[
-            DataDriftPreset(),
-        ])
-        report.run(reference_data=ref_subset, current_data=cur_subset)
+        # Build and run the Evidently report (v0.7 API)
+        report = Report(metrics=[DataDriftPreset()])
+        snapshot = report.run(reference_data=ref_subset, current_data=cur_subset)
 
         # Save HTML report
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         report_path = os.path.join(self.REPORTS_DIR, f"drift_report_{table}_{timestamp}.html")
-        report.save_html(report_path)
-        logger.info(f"Drift report saved: {report_path}")
+        try:
+            html_content = snapshot.get_html_str(as_iframe=False)
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            logger.info(f"Drift report saved: {report_path}")
+        except Exception as e:
+            logger.warning(f"Could not save HTML report: {e}")
+            report_path = None
 
-        # Extract summary from report as dict
-        report_dict = report.as_dict()
-
-        # Parse drift results
+        # Build summary
         drift_summary = {
             "status": "ok",
             "table": table,
@@ -115,18 +112,20 @@ class DriftMonitor:
             "drifted_columns": [],
         }
 
-        # Extract drift info from report metrics
-        for metric_result in report_dict.get("metrics", []):
-            metric_data = metric_result.get("result", {})
-
-            if "drift_share" in metric_data:
-                drift_summary["drift_share"] = metric_data["drift_share"]
-                drift_summary["drift_detected"] = metric_data.get("dataset_drift", False)
-                drift_summary["number_of_drifted_columns"] = metric_data.get("number_of_drifted_columns", 0)
-
-                for col, col_data in metric_data.get("drift_by_columns", {}).items():
-                    if col_data.get("drift_detected", False):
-                        drift_summary["drifted_columns"].append(col)
+        # Extract drift info from snapshot dict
+        try:
+            report_dict = snapshot.dump_dict()
+            for metric_result in report_dict.get("metrics", []):
+                metric_data = metric_result.get("result", {})
+                if "drift_share" in metric_data:
+                    drift_summary["drift_share"] = metric_data["drift_share"]
+                    drift_summary["drift_detected"] = metric_data.get("dataset_drift", False)
+                    drift_summary["number_of_drifted_columns"] = metric_data.get("number_of_drifted_columns", 0)
+                    for col, col_data in metric_data.get("drift_by_columns", {}).items():
+                        if col_data.get("drift_detected", False):
+                            drift_summary["drifted_columns"].append(col)
+        except Exception as e:
+            logger.warning(f"Could not extract detailed drift metrics: {e}")
 
         if drift_summary["drift_detected"]:
             drift_summary["status"] = "drift_detected"
