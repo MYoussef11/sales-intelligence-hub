@@ -24,6 +24,7 @@ class AgentState(TypedDict):
     messages: list
     next_step: str
     final_answer: str
+    agent_type: str
 
 def router_node(state: AgentState):
     """
@@ -50,7 +51,6 @@ def router_node(state: AgentState):
     
     choice = response.content.strip().lower()
     
-    # Fallback/Safety
     if "sql" in choice:
         return {"next_step": "sql"}
     else:
@@ -66,7 +66,7 @@ def sql_node(state: AgentState):
     except Exception as e:
         response = f"SQL Agent Error: {str(e)}"
         
-    return {"final_answer": response}
+    return {"final_answer": response, "agent_type": "sql"}
 
 def rag_node(state: AgentState):
     messages = state["messages"]
@@ -78,7 +78,7 @@ def rag_node(state: AgentState):
     except Exception as e:
         response = f"RAG Agent Error: {str(e)}"
         
-    return {"final_answer": response}
+    return {"final_answer": response, "agent_type": "rag"}
 
 # Build Graph
 workflow = StateGraph(AgentState)
@@ -106,18 +106,26 @@ workflow.add_edge("rag_agent", END)
 
 app_graph = workflow.compile()
 
-def run_chat(user_input: str) -> str:
+def run_chat(user_input: str) -> dict:
     """
-    Main entry point for the API.
+    Main entry point for the API. Returns answer + agent type.
     """
     try:
         inputs = {"messages": [HumanMessage(content=user_input)]}
         result = app_graph.invoke(inputs)
-        return result.get("final_answer", "No answer generated.")
+        return {
+            "answer": result.get("final_answer", "No answer generated."),
+            "agent_type": result.get("agent_type", "unknown")
+        }
     except Exception as e:
         logger.error(f"Orchestrator Error: {e}", exc_info=True)
-        return f"System Error: {str(e)}"
+        return {
+            "answer": f"System Error: {str(e)}",
+            "agent_type": "error"
+        }
 
 if __name__ == "__main__":
-    print(run_chat("What is the return policy?"))
-    print(run_chat("How many dealers do we have?"))
+    result = run_chat("What is the return policy?")
+    print(f"[{result['agent_type'].upper()}] {result['answer']}")
+    result = run_chat("How many dealers do we have?")
+    print(f"[{result['agent_type'].upper()}] {result['answer']}")

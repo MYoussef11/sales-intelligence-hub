@@ -28,10 +28,11 @@ httpx<0.28
 tiktoken==0.7.0
 langchain==0.2.6
 langchain-community==0.2.6
-langchain-core==0.2.10
+langchain-core==0.2.43
 langchain-openai==0.1.9
 langchain-text-splitters==0.2.1
-langgraph==0.1.4
+langgraph==0.2.4
+langgraph-checkpoint==1.0.12
 faiss-cpu==1.8.0
 markdown
 networkx

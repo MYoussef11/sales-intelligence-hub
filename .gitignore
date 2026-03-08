@@ -20,19 +20,17 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.venv/
+
+# Environment
+.env
 
 # Node
 node_modules/
-dist/
-.env
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Environment
-.venv/
-.env
 
 # Data & Dumps
 *.sql
@@ -41,6 +39,5 @@ data/*.csv
 data/docs/
 models/*.pkl
 
-# OS
-.DS_Store
-
+# n8n local data
+n8n_data/

@@ -2,6 +2,7 @@ import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, classification_report
 from sqlalchemy import create_engine
 import pickle
 import os
@@ -46,7 +47,7 @@ class LeadScorer:
         
         if df.empty:
             logger.warning("No training data found")
-            return 0.0
+            return {"accuracy": 0.0}
             
         # Preprocessing
         df['source_encoded'] = self.encoder.fit_transform(df['source'])
@@ -54,13 +55,33 @@ class LeadScorer:
         X = df[['source_encoded', 'response_time_minutes']]
         y = df['converted']
         
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
         self.model.fit(X_train, y_train)
-        score = self.model.score(X_test, y_test)
-        logger.info(f"Model Accuracy: {score:.2f}")
+        y_pred = self.model.predict(X_test)
         
-        return score
+        # Evaluation Metrics
+        metrics = {
+            "accuracy": accuracy_score(y_test, y_pred),
+            "precision": precision_score(y_test, y_pred, zero_division=0),
+            "recall": recall_score(y_test, y_pred, zero_division=0),
+            "f1_score": f1_score(y_test, y_pred, zero_division=0),
+            "train_size": len(X_train),
+            "test_size": len(X_test),
+        }
+        
+        logger.info("=" * 50)
+        logger.info("LEAD SCORER — Evaluation Results")
+        logger.info("=" * 50)
+        logger.info(f"  Accuracy:  {metrics['accuracy']:.4f}")
+        logger.info(f"  Precision: {metrics['precision']:.4f}")
+        logger.info(f"  Recall:    {metrics['recall']:.4f}")
+        logger.info(f"  F1 Score:  {metrics['f1_score']:.4f}")
+        logger.info(f"  Train/Test Split: {metrics['train_size']} / {metrics['test_size']}")
+        logger.info("-" * 50)
+        logger.info("\n" + classification_report(y_test, y_pred, target_names=["Not Converted", "Converted"], zero_division=0))
+        
+        return metrics
 
     def predict(self, source, response_time):
         if not self.loaded:
@@ -68,13 +89,12 @@ class LeadScorer:
             
         try:
             if not hasattr(self.model, 'predict_proba'):
-                 return 0.5 # Fallback
+                 return 0.5  # Fallback
                  
             source_encoded = self.encoder.transform([source])[0]
             prob = self.model.predict_proba([[source_encoded, response_time]])[0][1]
             return prob
         except Exception as e:
-            # Handle unknown source or other errors
             logger.error(f"Prediction error: {e}")
             return 0.0
 
