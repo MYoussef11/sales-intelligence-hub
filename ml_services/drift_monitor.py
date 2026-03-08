@@ -2,6 +2,8 @@
 
 Compares current data distributions against a reference baseline
 to detect concept drift and data quality issues.
+
+Compatible with Evidently v0.5+ (new API).
 """
 import os
 import sys
@@ -16,9 +18,9 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# Evidently imports
-from evidently.report import Report
-from evidently.metric_preset import DataDriftPreset, DataQualityPreset
+# Evidently v0.5+ imports
+from evidently import Report
+from evidently.presets import DataDriftPreset
 
 
 class DriftMonitor:
@@ -39,24 +41,23 @@ class DriftMonitor:
             return pd.read_sql(query, engine)
         except Exception as e:
             logger.warning(f"Could not load {table}: {e}")
-            # Fallback: try without created_at ordering
             return pd.read_sql(f"SELECT * FROM {table} LIMIT 5000", engine)
 
     def save_reference(self, table: str = "leads"):
         """Save current data as the reference baseline."""
         df = self._load_current_data(table)
-        self.REFERENCE_PATH = os.path.join(self.REPORTS_DIR, f"reference_{table}.parquet")
-        df.to_parquet(self.REFERENCE_PATH, index=False)
+        ref_path = os.path.join(self.REPORTS_DIR, f"reference_{table}.parquet")
+        df.to_parquet(ref_path, index=False)
         logger.info(f"Reference baseline saved: {len(df)} rows from '{table}'")
         return len(df)
 
     def run_drift_check(self, table: str = "leads") -> dict:
         """Run drift analysis comparing current data against reference.
-        
+
         Returns a summary dict with drift status and details.
         """
         ref_path = os.path.join(self.REPORTS_DIR, f"reference_{table}.parquet")
-        
+
         # Create reference if it doesn't exist
         if not os.path.exists(ref_path):
             logger.info("No reference baseline found — creating from current data...")
@@ -73,7 +74,6 @@ class DriftMonitor:
         current_data = self._load_current_data(table)
 
         # Select only numeric and categorical columns for comparison
-        # Exclude IDs and timestamps
         exclude_cols = [c for c in current_data.columns if c.endswith("_id") or c.endswith("_at") or c.endswith("_date")]
         compare_cols = [c for c in current_data.columns if c not in exclude_cols and c in reference_data.columns]
 
@@ -87,10 +87,9 @@ class DriftMonitor:
         ref_subset = reference_data[compare_cols].copy()
         cur_subset = current_data[compare_cols].copy()
 
-        # Build and run the Evidently report
+        # Build and run the Evidently report (v0.5+ API)
         report = Report(metrics=[
             DataDriftPreset(),
-            DataQualityPreset(),
         ])
         report.run(reference_data=ref_subset, current_data=cur_subset)
 
@@ -119,14 +118,12 @@ class DriftMonitor:
         # Extract drift info from report metrics
         for metric_result in report_dict.get("metrics", []):
             metric_data = metric_result.get("result", {})
-            
-            # Check DataDriftPreset results
+
             if "drift_share" in metric_data:
                 drift_summary["drift_share"] = metric_data["drift_share"]
                 drift_summary["drift_detected"] = metric_data.get("dataset_drift", False)
                 drift_summary["number_of_drifted_columns"] = metric_data.get("number_of_drifted_columns", 0)
-                
-                # Get per-column drift details
+
                 for col, col_data in metric_data.get("drift_by_columns", {}).items():
                     if col_data.get("drift_detected", False):
                         drift_summary["drifted_columns"].append(col)
